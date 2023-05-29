@@ -2,92 +2,40 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"github.com/schollz/progressbar/v3"
-	"golang.org/x/sync/semaphore"
+	"github.com/redis/go-redis/v9"
 	"knockknocker/requester"
 	"os"
-	"strings"
-	"sync"
+	"strconv"
 )
 
-func readLines(path string) []string {
-	file, err := os.Open(path)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-
-	var lines []string
-	for {
-		var line string
-		_, err := fmt.Fscanf(file, "%s\n", &line)
-		if err != nil {
-			break
-		}
-		lines = append(lines, line)
-	}
-
-	return lines
-}
-
-type invalidUrl struct {
-	url   string
-	error error
-}
+var ctx = context.Background()
 
 func main() {
-	readFilePath := os.Args[1]
-	writeFilePath := os.Args[2]
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     os.Getenv("REDIS_ADDR"),
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
 
-	invalidUrlsChain := make(chan invalidUrl)
-	lines := readLines(readFilePath)
-	wg := sync.WaitGroup{}
-	wg.Add(len(lines))
-	completeChain := make(chan bool)
-	go func() {
-		ctx := context.TODO()
-		sem := semaphore.NewWeighted(400)
-		for _, line := range lines {
-			line := line
-			sem.Acquire(ctx, 1)
-			go func() {
-				defer sem.Release(1)
-				defer wg.Done()
-				parsedUrl := strings.Split(line, ",")
-				accessError := requester.TouchWebsite(parsedUrl[1])
-				if accessError != nil {
-					invalidUrlsChain <- invalidUrl{url: parsedUrl[1], error: accessError}
-				}
-				completeChain <- true
-			}()
+	var cursor uint64
+	count := 0
+	for {
+		var keys []string
+		keys, cursor, _ = rdb.SScan(ctx, "all-hosts", cursor, "", 10).Result()
+		if cursor == 0 {
+			break
 		}
-		wg.Wait()
-		close(completeChain)
-		close(invalidUrlsChain)
-	}()
-
-	go func() {
-		writeFile, err := os.OpenFile(writeFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-		if err != nil {
-			return
-		}
-		for invalidUrl := range invalidUrlsChain {
-			n, err := writeFile.Write([]byte(invalidUrl.url + " " + invalidUrl.error.Error() + "\n\n\n"))
+		for _, dirtyUrl := range keys {
+			count++
+			err := requester.TouchWebsite(dirtyUrl)
 			if err != nil {
-				fmt.Println(n, err)
+				rdb.SAdd(ctx, "banned", dirtyUrl)
+				println(strconv.Itoa(count) + "|" + dirtyUrl + " is banned")
+			} else {
+				println(strconv.Itoa(count) + "|" + dirtyUrl + " is not banned")
 			}
 		}
-
-		writeFileErr := writeFile.Close()
-		if writeFileErr != nil {
-			fmt.Println(writeFileErr)
-		}
-
-	}()
-
-	bar := progressbar.Default(int64(len(lines)))
-	for range completeChain {
-		bar.Add(1)
 	}
+
+	println("done")
 }
