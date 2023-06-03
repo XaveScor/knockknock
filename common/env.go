@@ -1,15 +1,19 @@
 package common
 
-import "os"
+import (
+	"github.com/joho/godotenv"
+	"os"
+)
 
 type Env struct {
 	RedisAddr string
 }
 
 func GetEnvs() *Env {
+	_ = godotenv.Load()
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr == "" {
-		panic("REDIS_ADDR is not set")
+		panic("env REDIS_ADDR is not set")
 	}
 
 	return &Env{
