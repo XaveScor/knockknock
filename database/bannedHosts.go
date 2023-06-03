@@ -27,3 +27,8 @@ func initBannedHosts(ctx *context.Context, redisClient *redis.Client) {
 		log.Printf("[INFO]InitRedis: the SET key bannedHosts(%s) exists\n", bannedHosts)
 	}
 }
+
+func (db *Database) SaveBannedHost(host string) (bool, error) {
+	res, err := db.redisClient.SAdd(*db.ctx, bannedHosts, host).Result()
+	return res == 1, err
+}
