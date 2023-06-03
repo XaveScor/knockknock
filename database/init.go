@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"github.com/redis/go-redis/v9"
+	"log"
 )
 
 type Database struct {
@@ -24,5 +25,12 @@ func Init(redisAddr string) *Database {
 	return &Database{
 		ctx:         &ctx,
 		redisClient: redisClient,
+	}
+}
+
+func (db *Database) Close() {
+	err := db.redisClient.Close()
+	if err != nil {
+		log.Fatalln("[FATAL]Close: cannot close the redis connection", err)
 	}
 }

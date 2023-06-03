@@ -3,8 +3,37 @@ package database
 import (
 	"context"
 	"github.com/redis/go-redis/v9"
+	"knockknocker/common"
 	"log"
+	"os"
+	"path/filepath"
+	"strings"
 )
+
+func writeDefaultDataIntoAllHosts(ctx *context.Context, redisClient *redis.Client) (int64, error) {
+	ownDir := common.GetEnvs().OwnDirectory
+	hostsFilename := filepath.Join(ownDir, "hosts.txt")
+	hostsFile, err := os.OpenFile(hostsFilename, os.O_RDONLY, 0666)
+	if err != nil {
+		log.Println("[WARN]InitRedis: cannot open the hosts.txt file, skipping it")
+		return redisClient.SAdd(*ctx, allHosts, "").Result()
+	}
+	defer func(hostsFile *os.File) {
+		err := hostsFile.Close()
+		if err != nil {
+			log.Println("[WARN]InitRedis: cannot close the hosts.txt file")
+		}
+	}(hostsFile)
+
+	hostsFileContent, err := os.ReadFile(hostsFilename)
+	domains := strings.Split(string(hostsFileContent), "\n")
+	addRes, err := redisClient.SAdd(*ctx, allHosts, domains).Result()
+	if err != nil {
+		return 0, err
+	}
+	log.Println("[INFO]InitRedis: the data from hosts.txt copied to the allHosts key")
+	return addRes, nil
+}
 
 func initAllHosts(ctx *context.Context, redisClient *redis.Client) {
 	result, err := redisClient.Type(*ctx, allHosts).Result()
@@ -18,8 +47,8 @@ func initAllHosts(ctx *context.Context, redisClient *redis.Client) {
 			log.Fatalf("[FATAL]InitRedis: cannot remove the allHosts(%s) key.\n%s\n", allHosts, err)
 		}
 		log.Printf("[INFO]InitRedis: the key allHosts(%s) removed\n", allHosts)
-		addRes, err := redisClient.SAdd(*ctx, allHosts, "").Result()
-		if err != nil || addRes != 1 {
+		addRes, err := writeDefaultDataIntoAllHosts(ctx, redisClient)
+		if err != nil || addRes == 0 {
 			log.Fatalf("[FATAL]InitRedis: cannot add the allHosts(%s) key.\n%s\n", allHosts, err)
 		}
 		log.Printf("[INFO]InitRedis: the SET key allHosts(%s) created\n", allHosts)
