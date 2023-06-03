@@ -6,7 +6,8 @@ import (
 )
 
 func main() {
-	database.Init(common.GetEnvs().RedisAddr)
+	db := database.Init(common.GetEnvs().RedisAddr)
+	defer db.Close()
 	//rdb := redis.NewClient(&redis.Options{
 	//	Addr:     os.Getenv("REDIS_ADDR"),
 	//	Password: "", // no password set
