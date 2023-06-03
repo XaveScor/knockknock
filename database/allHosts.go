@@ -56,3 +56,17 @@ func initAllHosts(ctx *context.Context, redisClient *redis.Client) {
 		log.Printf("[INFO]InitRedis: the SET key allHosts(%s) exists\n", allHosts)
 	}
 }
+
+func validateAllHostsQueue(ctx *context.Context, redisClient *redis.Client) {
+	result, err := redisClient.Type(*ctx, allHostsQueue).Result()
+	if err != nil {
+		log.Fatalf("[FATAL]InitRedis: redisClient.Type(ctx, allHostsQueue).Result() error\n%s\n", err)
+	}
+	if result != "set" {
+		log.Printf("[WARN]InitRedis: allHostsQueue(%s) is not set, removing it\n", allHostsQueue)
+		err := redisClient.Del(*ctx, allHostsQueue).Err()
+		if err != nil {
+			log.Fatalf("[FATAL]InitRedis: cannot remove the allHostsQueue(%s) key.\n%s\n", allHostsQueue, err)
+		}
+	}
+}

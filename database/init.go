@@ -21,6 +21,7 @@ func Init(redisAddr string) *Database {
 
 	initAllHosts(&ctx, redisClient)
 	initBannedHosts(&ctx, redisClient)
+	validateAllHostsQueue(&ctx, redisClient)
 
 	return &Database{
 		ctx:         &ctx,
