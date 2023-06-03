@@ -11,14 +11,8 @@ func main() {
 	db := database.Init(common.GetEnvs().RedisAddr)
 	defer db.Close()
 
-	var cursor uint64
 	for {
-		var keys []string
-		keys, cursor, _ = db.ScanDomains(cursor, 100)
-		if cursor == 0 {
-			break
-		}
-		for _, dirtyUrl := range keys {
+		for _, dirtyUrl := range db.GetNextDomains(10) {
 			log.Printf("[INFO]main: checking %s\n", dirtyUrl)
 			err := requester.TouchWebsite(dirtyUrl)
 			if err != nil {
@@ -33,6 +27,4 @@ func main() {
 			}
 		}
 	}
-
-	log.Printf("finished")
 }

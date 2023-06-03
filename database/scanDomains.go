@@ -1,5 +1,18 @@
 package database
 
-func (db *Database) ScanDomains(cursor uint64, count int64) ([]string, uint64, error) {
-	return db.redisClient.SScan(*db.ctx, allHosts, cursor, "", count).Result()
+import "log"
+
+func (db *Database) GetNextDomains(count int64) []string {
+	result, err := db.redisClient.SPopN(*db.ctx, allHostsQueue, count).Result()
+	if err != nil {
+		log.Printf("[INFO]GetNextDomains: cannot get next domain. Recreating the allHostsQueue(%s) key\n", allHostsQueue)
+
+		copyRes, err := db.redisClient.Copy(*db.ctx, allHosts, allHostsQueue, 0, true).Result()
+		if err != nil || copyRes != 1 {
+			log.Fatalf("[FATAL]GetNextDomains: cannot copy the allHosts(%s) key to allHostsQueue(%s) key.\n%s\n", allHosts, allHostsQueue, err)
+		}
+		return db.GetNextDomains(count)
+	}
+
+	return result
 }
